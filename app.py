@@ -724,7 +724,7 @@ def forgot_password():
         upsert=True
     )
 
-    reset_link = f"https://backend-dreamersz.onrender.com/ResetPassword?token={reset_token}"
+    reset_link = f"https://dreamersuniqueinc.vercel.app/ResetPassword?token={reset_token}"
 
     # Compose email using MIMEText for better formatting
     msg = MIMEMultipart()

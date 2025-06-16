@@ -716,7 +716,7 @@ def forgot_password():
         return jsonify({'message': 'Check your email or spam email'})
 
     reset_token = secrets.token_urlsafe(32)
-    expires_at = datetime.utcnow() + timedelta(hours=1)
+    expires_at = datetime.datetime.utcnow() + timedelta(hours=1)
 
     db.password_resets.update_one(
         {'email': email},

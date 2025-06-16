@@ -713,10 +713,10 @@ def forgot_password():
     user = users.find_one({'email': email})
     # Don't reveal if email exists or not
     if not user:
-        return jsonify({'message': 'If that email exists, a reset link has been sent.'})
+        return jsonify({'message': 'Check your email or spam email'})
 
     reset_token = secrets.token_urlsafe(32)
-    expires_at = datetime.datetime.utcnow() + timedelta(hours=1)
+    expires_at = datetime.utcnow() + timedelta(hours=1)
 
     db.password_resets.update_one(
         {'email': email},
@@ -726,13 +726,14 @@ def forgot_password():
 
     reset_link = f"https://dreamersuniqueinc.vercel.app/ResetPassword?token={reset_token}"
 
-    # Compose email using MIMEText for better formatting
-    msg = MIMEMultipart()
+    # Compose email with HTML formatting
+    msg = MIMEMultipart('alternative')
     msg['From'] = MAIL_DEFAULT_SENDER
     msg['To'] = email
     msg['Subject'] = "Password Reset Request"
 
-    body = f"""Hi {user.get('name')},
+    # Plain text fallback
+    text_body = f"""Hi {user.get('name')},
 
 To reset your password, click the link below:
 {reset_link}
@@ -741,7 +742,26 @@ This link expires in 1 hour.
 
 If you did not request a password reset, please ignore this email.
 """
-    msg.attach(MIMEText(body, 'plain'))
+
+    # HTML body (no target="_blank" so it opens in same tab)
+    html_body = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <p>Hi {user.get('name')},</p>
+        <p>To reset your password, click the link below:</p>
+        <p>
+          <a href="{reset_link}" style="color: #1a73e8; text-decoration: none;">
+            Reset Your Password
+          </a>
+        </p>
+        <p>This link expires in 1 hour.</p>
+        <p>If you did not request a password reset, please ignore this email.</p>
+      </body>
+    </html>
+    """
+
+    msg.attach(MIMEText(text_body, 'plain'))
+    msg.attach(MIMEText(html_body, 'html'))
 
     try:
         with smtplib.SMTP(MAIL_SERVER, MAIL_PORT) as server:
@@ -750,7 +770,6 @@ If you did not request a password reset, please ignore this email.
             server.login(MAIL_USERNAME, MAIL_PASSWORD)
             server.send_message(msg)
     except Exception as e:
-        # Log the exception for debugging (optional)
         print(f"Failed to send reset email: {e}")
         return jsonify({'error': f'Failed to send reset email: {str(e)}'}), 500
 

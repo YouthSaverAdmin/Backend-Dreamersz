@@ -27,7 +27,7 @@ app = Flask(__name__)
 CORS(
     app,
     supports_credentials=True,  # Important for cookies
-    origins=["http://localhost:5173", ]  # Your frontend URL
+    origins=["http://localhost:5173", "https://dreamersuniqueinc.vercel.app"]  # Your frontend URL
 )
 
 # MongoDB setup
@@ -724,7 +724,7 @@ def forgot_password():
         upsert=True
     )
 
-    reset_link = f"http://localhost:5173/ResetPassword?token={reset_token}"
+    reset_link = f"https://backend-dreamersz.onrender.com/ResetPassword?token={reset_token}"
 
     # Compose email using MIMEText for better formatting
     msg = MIMEMultipart()

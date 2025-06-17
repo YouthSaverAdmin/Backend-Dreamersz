@@ -470,7 +470,6 @@ def get_product_detail(product_id):
 
         product = convert_objectid(product)
 
-        # Validate image file id
         image_file_id = product.get("image_file_id")
         if image_file_id:
             try:
@@ -494,7 +493,6 @@ def get_product_detail(product_id):
 
                     owner_id_str = store.get("owner_id")
                     if owner_id_str:
-                        # Owner ID stored as string, convert to ObjectId
                         try:
                             owner_obj_id = ObjectId(owner_id_str)
                             owner = db.users.find_one({"_id": owner_obj_id})
@@ -505,10 +503,15 @@ def get_product_detail(product_id):
             except Exception:
                 store = None
 
+        # ✅ Get current user email
+        current_user = db.users.find_one({"_id": ObjectId(user_id)})
+        current_user_email = current_user.get("email") if current_user else None
+
         response = {
             "product": product,
             "store": store,
             "user_email": owner_email or "N/A",
+            "current_user_email": current_user_email or "N/A",  # ✅ include this
         }
 
         return jsonify(response)

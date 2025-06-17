@@ -280,17 +280,36 @@ def create_store():
     user_id = get_current_user_id()
     if not user_id:
         return jsonify({'error': 'Not authenticated'}), 401
-    data = request.get_json()
-    name = data.get('name')
-    if not name:
-        return jsonify({'error': 'Store name is required'}), 400
-    # Check if user already has store
+
+    name = request.form.get('name')
+    image_file = request.files.get('image')
+
+    if not name or not image_file:
+        return jsonify({'error': 'Store name and image are required'}), 400
+
+    # Check if user already has a store
     if db.stores.find_one({'owner_id': user_id}):
         return jsonify({'error': 'Store already exists'}), 400
 
-    store = {'name': name, 'owner_id': user_id}
+    # Save image to GridFS
+    image_data = image_file.read()
+    filename = secure_filename(image_file.filename)
+    content_type = image_file.content_type
+
+    file_id = fs.put(image_data, filename=filename, content_type=content_type)
+
+    # Create store document
+    store = {
+        'name': name,
+        'owner_id': user_id,
+        'image_file_id': file_id
+    }
+
     result = db.stores.insert_one(store)
+
     store['_id'] = str(result.inserted_id)
+    store['image_file_id'] = str(file_id)
+
     return jsonify({'store': store}), 201
 
 @app.route('/api/items', methods=['POST'])

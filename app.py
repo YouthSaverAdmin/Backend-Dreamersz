@@ -322,10 +322,12 @@ def create_item():
     name = request.form.get('name')
     price = request.form.get('price')
     store_id = request.form.get('store_id')
-    description = request.form.get('description', '')  # Optional, defaults to empty string
-    image_file = request.files.get('image')
+    description = request.form.get('description', '')  # Optional
 
-    if not all([name, price, store_id, image_file]):
+    # `getlist` to handle multiple files
+    image_files = request.files.getlist('images')
+
+    if not all([name, price, store_id]) or not image_files:
         return jsonify({'error': 'Missing fields'}), 400
 
     # Validate store ownership
@@ -333,12 +335,15 @@ def create_item():
     if not store:
         return jsonify({'error': 'Invalid store or unauthorized'}), 403
 
-    # Save image to GridFS
-    image_data = image_file.read()
-    filename = secure_filename(image_file.filename)
-    content_type = image_file.content_type
-
-    file_id = fs.put(image_data, filename=filename, content_type=content_type)
+    # Save all images to GridFS
+    image_file_ids = []
+    for image_file in image_files:
+        if image_file:
+            image_data = image_file.read()
+            filename = secure_filename(image_file.filename)
+            content_type = image_file.content_type
+            file_id = fs.put(image_data, filename=filename, content_type=content_type)
+            image_file_ids.append(file_id)
 
     # Create item document
     item = {
@@ -346,14 +351,14 @@ def create_item():
         'price': float(price),
         'description': description,
         'store_id': ObjectId(store_id),
-        'image_file_id': file_id
+        'image_file_ids': image_file_ids  # <-- Note plural
     }
 
     result = db.items.insert_one(item)
 
     item['_id'] = str(result.inserted_id)
     item['store_id'] = str(item['store_id'])
-    item['image_file_id'] = str(file_id)
+    item['image_file_ids'] = [str(fid) for fid in image_file_ids]
 
     return jsonify({'item': item}), 201
 

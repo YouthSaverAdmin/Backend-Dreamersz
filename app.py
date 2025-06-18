@@ -463,25 +463,22 @@ def show_product():
 
     for item in items:
         item = convert_objectid(item)
-        image_file_id = item.get("image_file_id")
 
-        if image_file_id:
+        image_ids = item.get("image_file_ids", [])
+        valid_image_ids = []
+
+        for img_id in image_ids:
             try:
-                file_obj_id = ObjectId(image_file_id)
-                # Use filter dict in fs.exists
-                exists = fs.exists({"_id": file_obj_id})
-                if not exists:
-                    item["image_file_id"] = None
+                file_obj_id = ObjectId(img_id)
+                if fs.exists({"_id": file_obj_id}):
+                    valid_image_ids.append(str(file_obj_id))
             except Exception:
-                # In case invalid ObjectId
-                item["image_file_id"] = None
-        else:
-            item["image_file_id"] = None
-        
+                continue  # Skip invalid ID
+
+        item["image_file_ids"] = valid_image_ids
         valid_items.append(item)
 
     return jsonify({"items": valid_items})
-
 
 @app.route("/api/product/<product_id>")
 def get_product_detail(product_id):
@@ -495,24 +492,27 @@ def get_product_detail(product_id):
         return jsonify({"error": "Invalid product ID"}), 400
 
     try:
-        # Fetch the product
         product = db.items.find_one({"_id": product_obj_id})
         if not product:
             return jsonify({"error": "Product not found"}), 404
 
         product = convert_objectid(product)
 
-        # Validate image_file_id
-        image_file_id = product.get("image_file_id")
-        try:
-            if image_file_id and fs.exists({"_id": ObjectId(image_file_id)}):
-                product["image_file_id"] = str(image_file_id)
-            else:
-                product["image_file_id"] = None
-        except Exception:
-            product["image_file_id"] = None
+        # Validate multiple image IDs
+        image_ids = product.get("image_file_ids", [])
+        valid_image_ids = []
 
-        # Store and owner email
+        for img_id in image_ids:
+            try:
+                file_obj_id = ObjectId(img_id)
+                if fs.exists({"_id": file_obj_id}):
+                    valid_image_ids.append(str(file_obj_id))
+            except Exception:
+                continue
+
+        product["image_file_ids"] = valid_image_ids
+
+        # Get store details
         store = None
         owner_email = None
         store_id = product.get("store_id")
@@ -524,14 +524,12 @@ def get_product_detail(product_id):
                 if store_data:
                     store = convert_objectid(store_data)
 
-                    # Get store owner's email
                     owner_id = store.get("owner_id")
                     if owner_id:
                         owner = db.users.find_one({"_id": ObjectId(owner_id)})
                         owner_email = owner.get("email") if owner else None
             except Exception:
-                store = None
-                owner_email = None
+                pass
 
         # Get current user email
         current_user = db.users.find_one({"_id": ObjectId(user_id)})
@@ -543,7 +541,7 @@ def get_product_detail(product_id):
             "user_email": owner_email or "N/A",
             "current_user_email": current_user_email or "N/A",
         })
-    
+
     except Exception as e:
         print(f"[Server Error] {e}")
         return jsonify({"error": "Internal server error"}), 500

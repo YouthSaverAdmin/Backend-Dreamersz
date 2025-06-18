@@ -51,7 +51,8 @@ MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
 MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER") or MAIL_USERNAME
 
 is_production = os.getenv("FLASK_ENV") == "production"
-
+IPQS_API_KEY = os.getenv("IPQS_API_KEY")
+IPQS_BASE_URL = "https://ipqualityscore.com/api/json/ip"
 print("JWT module path:", getattr(jwt, '__file__', 'Not found'))
 print("Has encode():", hasattr(jwt, 'encode'))
 
@@ -909,5 +910,51 @@ def get_my_orders():
             order["timestamp"] = order["timestamp"].isoformat()
 
     return jsonify({"orders": user_orders}), 200
+
+
+
+@app.route('/api/check-vpn', methods=['GET'])
+def check_vpn():
+    ip = request.remote_addr or request.headers.get('X-Forwarded-For')
+    user_agent = request.headers.get('User-Agent', '')
+    language = request.headers.get('Accept-Language', '').split(',')[0]
+
+    params = {
+        'strictness': 1,
+        'allow_public_access_points': 'true',
+        'user_agent': user_agent,
+        'user_language': language
+    }
+
+    try:
+        url = f"{IPQS_BASE_URL}/{IPQS_API_KEY}/{ip}"
+        response = request.get(url, params=params)
+        data = response.json()
+
+        if not data.get('success', False):
+            return jsonify({'error': 'Failed to query IPQualityScore'}), 500
+
+        return jsonify({
+            'proxy': data.get('proxy', False),
+            'vpn': data.get('vpn', False),
+            'tor': data.get('tor', False),
+            'fraud_score': data.get('fraud_score', 0),
+            'isp': data.get('ISP'),
+            'org': data.get('organization'),
+            'ip': data.get('ip_address'),
+            'city': data.get('city'),
+            'region': data.get('region'),
+            'country': data.get('country_code'),
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+
+
 if __name__ == '__main__':
     app.run(debug=True)

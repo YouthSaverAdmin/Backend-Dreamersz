@@ -22,7 +22,7 @@ from gridfs import GridFS
 import urllib
 from werkzeug.utils import secure_filename
 from bson import ObjectId
-import requests
+
 
 load_dotenv()  # Load .env variables if you use a .env file
 

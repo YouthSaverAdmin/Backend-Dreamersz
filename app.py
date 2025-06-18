@@ -378,7 +378,6 @@ def serve_image(file_id):
         return "Image not found", 404
 
 
-
 @app.route("/api/my-items")
 def get_my_items():
     user_id = get_current_user_id()
@@ -396,9 +395,13 @@ def get_my_items():
     for item in items:
         item["_id"] = str(item["_id"])
         item["store_id"] = str(item["store_id"])
-        item["image_file_id"] = str(item.get("image_file_id", ""))
-    
+        
+        # Convert each image_file_id to string if image_file_ids exist
+        image_file_ids = item.get("image_file_ids", [])
+        item["image_file_ids"] = [str(fid) for fid in image_file_ids]
+
     return jsonify({"items": items})
+
 
 @app.route('/api/items/<item_id>', methods=['DELETE'])
 def delete_item(item_id):

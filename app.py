@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from bson import ObjectId
 import pytz
 import bcrypt
-from flask import Flask, Response, request, jsonify
+from flask import Flask, Response, json, request, jsonify
 from pymongo import MongoClient
 from flask_cors import CORS
 import os
@@ -19,8 +19,11 @@ import secrets
 import jwt
 from flask import request, jsonify
 from gridfs import GridFS
+import urllib
 from werkzeug.utils import secure_filename
 from bson import ObjectId
+import requests
+
 load_dotenv()  # Load .env variables if you use a .env file
 
 app = Flask(__name__)
@@ -51,8 +54,8 @@ MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
 MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER") or MAIL_USERNAME
 
 is_production = os.getenv("FLASK_ENV") == "production"
+api_key = os.getenv("IPQUALITYSCORE_KEY")
 
-VPN_API_KEY = os.getenv("VPN_API_KEY")  
 print("JWT module path:", getattr(jwt, '__file__', 'Not found'))
 print("Has encode():", hasattr(jwt, 'encode'))
 
@@ -913,42 +916,46 @@ def get_my_orders():
 
 
 
-@app.route('/api/check-vpn', methods=['GET'])
+@app.route("/api/check-vpn", methods=["GET"])
 def check_vpn():
+    ip = request.args.get("ip")
+    user_agent = request.headers.get("User-Agent", "")
+    language = request.headers.get("Accept-Language", "")
+
+    if not ip:
+        return jsonify({"error": "Missing IP address"}), 400
+
+    api_key = os.getenv("IPQUALITYSCORE_KEY")
+    if not api_key:
+        return jsonify({"error": "API key not set"}), 500
+
+    # Build the API URL
+    url = (
+        f"https://ipqualityscore.com/api/json/ip/{api_key}/{ip}"
+        f"?strictness=1&allow_public_access_points=true"
+        f"&user_agent={urllib.parse.quote(user_agent)}"
+        f"&user_language={urllib.parse.quote(language)}"
+    )
+
     try:
-        ip = request.remote_addr
-        user_agent = request.headers.get('User-Agent')
-        language = request.headers.get('Accept-Language')
-
-        # Use external IP if behind localhost for dev testing
-        if ip == "127.0.0.1":
-            ip = request.get("https://api.ipify.org").text
-
-        response = request.get(f"https://vpnapi.io/api/{ip}?key={VPN_API_KEY}")
-        data = response.json()
-
-        if "security" not in data:
-            return jsonify({"error": "VPN check failed", "raw": data}), 500
+        with urllib.request.urlopen(url) as response:
+            raw = response.read().decode()
+            print("RAW RESPONSE:", raw)  # <--- Add this
+            result = json.loads(raw)
 
         return jsonify({
-            "ip": ip,
-            "vpn": data["security"]["vpn"],
-            "proxy": data["security"]["proxy"],
-            "tor": data["security"]["tor"],
-            "fraud_score": data.get("security", {}).get("fraud_score", 0),
-            "city": data.get("location", {}).get("city"),
-            "region": data.get("location", {}).get("region"),
-            "country": data.get("location", {}).get("country"),
-            "org": data.get("network", {}).get("organization"),
+            "proxy": result.get("proxy"),
+            "vpn": result.get("vpn"),
+            "tor": result.get("tor"),
+            "fraud_score": result.get("fraud_score"),
+            "org": result.get("organization"),
+            "country": result.get("country_code"),
         })
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-
-
-
-
-
+        print("Error during VPN check:", e)
+        return jsonify({"error": "Internal server error"}), 500
+    
+    
 if __name__ == '__main__':
     app.run(debug=True)

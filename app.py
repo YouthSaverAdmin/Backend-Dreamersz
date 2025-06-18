@@ -495,60 +495,57 @@ def get_product_detail(product_id):
         return jsonify({"error": "Invalid product ID"}), 400
 
     try:
+        # Fetch the product
         product = db.items.find_one({"_id": product_obj_id})
         if not product:
             return jsonify({"error": "Product not found"}), 404
 
         product = convert_objectid(product)
 
+        # Validate image_file_id
         image_file_id = product.get("image_file_id")
-        if image_file_id:
-            try:
-                file_obj_id = ObjectId(image_file_id)
-                if not fs.exists({"_id": file_obj_id}):
-                    product["image_file_id"] = None
-            except Exception:
+        try:
+            if image_file_id and fs.exists({"_id": ObjectId(image_file_id)}):
+                product["image_file_id"] = str(image_file_id)
+            else:
                 product["image_file_id"] = None
-        else:
+        except Exception:
             product["image_file_id"] = None
 
+        # Store and owner email
         store = None
         owner_email = None
+        store_id = product.get("store_id")
 
-        if "store_id" in product:
+        if store_id:
             try:
-                store_obj_id = ObjectId(product["store_id"])
-                store = db.stores.find_one({"_id": store_obj_id})
-                if store:
-                    store = convert_objectid(store)
+                store_obj_id = ObjectId(store_id)
+                store_data = db.stores.find_one({"_id": store_obj_id})
+                if store_data:
+                    store = convert_objectid(store_data)
 
-                    owner_id_str = store.get("owner_id")
-                    if owner_id_str:
-                        try:
-                            owner_obj_id = ObjectId(owner_id_str)
-                            owner = db.users.find_one({"_id": owner_obj_id})
-                            if owner:
-                                owner_email = owner.get("email")
-                        except Exception:
-                            owner_email = None
+                    # Get store owner's email
+                    owner_id = store.get("owner_id")
+                    if owner_id:
+                        owner = db.users.find_one({"_id": ObjectId(owner_id)})
+                        owner_email = owner.get("email") if owner else None
             except Exception:
                 store = None
+                owner_email = None
 
-        # ✅ Get current user email
+        # Get current user email
         current_user = db.users.find_one({"_id": ObjectId(user_id)})
         current_user_email = current_user.get("email") if current_user else None
 
-        response = {
+        return jsonify({
             "product": product,
             "store": store,
             "user_email": owner_email or "N/A",
-            "current_user_email": current_user_email or "N/A",  # ✅ include this
-        }
-
-        return jsonify(response)
-
+            "current_user_email": current_user_email or "N/A",
+        })
+    
     except Exception as e:
-        print(f"Error fetching product detail: {e}")
+        print(f"[Server Error] {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 @app.route("/api/image/<file_id>")

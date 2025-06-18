@@ -51,8 +51,8 @@ MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
 MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER") or MAIL_USERNAME
 
 is_production = os.getenv("FLASK_ENV") == "production"
-IPQS_API_KEY = os.getenv("IPQS_API_KEY")
-IPQS_BASE_URL = "https://ipqualityscore.com/api/json/ip"
+
+VPN_API_KEY = os.getenv("VPN_API_KEY")  
 print("JWT module path:", getattr(jwt, '__file__', 'Not found'))
 print("Has encode():", hasattr(jwt, 'encode'))
 
@@ -915,40 +915,34 @@ def get_my_orders():
 
 @app.route('/api/check-vpn', methods=['GET'])
 def check_vpn():
-    ip = request.remote_addr or request.headers.get('X-Forwarded-For')
-    user_agent = request.headers.get('User-Agent', '')
-    language = request.headers.get('Accept-Language', '').split(',')[0]
-
-    params = {
-        'strictness': 1,
-        'allow_public_access_points': 'true',
-        'user_agent': user_agent,
-        'user_language': language
-    }
-
     try:
-        url = f"{IPQS_BASE_URL}/{IPQS_API_KEY}/{ip}"
-        response = request.get(url, params=params)
+        ip = request.remote_addr
+        user_agent = request.headers.get('User-Agent')
+        language = request.headers.get('Accept-Language')
+
+        # Use external IP if behind localhost for dev testing
+        if ip == "127.0.0.1":
+            ip = request.get("https://api.ipify.org").text
+
+        response = request.get(f"https://vpnapi.io/api/{ip}?key={VPN_API_KEY}")
         data = response.json()
 
-        if not data.get('success', False):
-            return jsonify({'error': 'Failed to query IPQualityScore'}), 500
+        if "security" not in data:
+            return jsonify({"error": "VPN check failed", "raw": data}), 500
 
         return jsonify({
-            'proxy': data.get('proxy', False),
-            'vpn': data.get('vpn', False),
-            'tor': data.get('tor', False),
-            'fraud_score': data.get('fraud_score', 0),
-            'isp': data.get('ISP'),
-            'org': data.get('organization'),
-            'ip': data.get('ip_address'),
-            'city': data.get('city'),
-            'region': data.get('region'),
-            'country': data.get('country_code'),
+            "ip": ip,
+            "vpn": data["security"]["vpn"],
+            "proxy": data["security"]["proxy"],
+            "tor": data["security"]["tor"],
+            "fraud_score": data.get("security", {}).get("fraud_score", 0),
+            "city": data.get("location", {}).get("city"),
+            "region": data.get("location", {}).get("region"),
+            "country": data.get("location", {}).get("country"),
+            "org": data.get("network", {}).get("organization"),
         })
-
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 

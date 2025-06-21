@@ -272,12 +272,13 @@ def get_store():
     user_id = get_current_user_id()
     if not user_id:
         return jsonify({'error': 'Not authenticated'}), 401
+
     store = db.stores.find_one({'owner_id': user_id})
     if not store:
         return jsonify({'store': None}), 200
-    # Convert ObjectId to string if needed
-    store['_id'] = str(store['_id'])
-    return jsonify({'store': store}), 200
+
+    return jsonify({'store': convert_object_ids(store)}), 200
+
 
 @app.route('/api/store', methods=['POST'])
 def create_store():
